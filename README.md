@@ -7,15 +7,14 @@ LLM-агентов — **Технического Скринера** и **HR-А�
 рекрутеру структурированную карточку с процентом соответствия, плюсами,
 минусами, рисками и вердиктом.
 
-Проект настроен на запуск с **настоящей LLM через локальный Ollama** (LLM
-«из коробки», без платных API-ключей) и **нейросетевыми эмбеддингами**
+Проект настроен на запуск с **настоящей LLM через локальный Ollama** и **нейросетевыми эмбеддингами**
 (`sentence-transformers`, `BAAI/bge-m3`) — см. раздел «Запуск» ниже.
 
 Архитектура при этом не привязана к конкретному провайдеру: LLM и
 эмбеддинг-модель подключаются через интерфейсы `LLMClient`
 (`src/llm_client.py`) и `EmbeddingModel` (`src/embeddings.py`), выбор
 реализации — через переменные окружения. Помимо `OpenAICompatibleLLM` и
-`SentenceTransformerEmbeddingModel` там же остались офлайн-реализации тех
+`SentenceTransformerEmbeddingModel` там же tcnm офлайн-реализации тех
 же интерфейсов (`RuleBasedLLM`, `TfidfEmbeddingModel`) — они ничего не
 ломают и не участвуют в обычном запуске, но на них построены
 детерминированные unit-тесты (`tests/`), которым не нужны сеть и запущенный
@@ -78,7 +77,7 @@ ai-recruiter/
 │   ├── embeddings.py     # интерфейс EmbeddingModel: SentenceTransformer (neural, по умолчанию для запуска) или TF-IDF (офлайн, для тестов)
 │   ├── vector_store.py   # лёгкая векторная БД (замена Chroma/FAISS): add_documents/query/query_within_resume
 │   ├── tools.py          # semantic_search, extract_experience_years, check_mandatory_skills, semantic_recheck_skill, find_keyword_evidence
-│   ├── llm_client.py     # абстракция LLM: OpenAICompatibleLLM (Ollama/OpenAI, по умолчанию для запуска) или офлайн RuleBasedLLM (для тестов)
+│   ├── llm_client.py     # абстракция LLM: OpenAICompatibleLLM (Ollama, по умолчанию для запуска) или офлайн RuleBasedLLM (для тестов)
 │   ├── agents.py         # TechnicalScreenerAgent, HRAnalystAgent (с дозапросом чанков)
 │   ├── debate.py          # шаг "дебатов": модератор сверяет заключения агентов
 │   ├── orchestrator.py   # AgentOrchestrator — ранжирование + дебаты + агрегация финального скора
@@ -100,15 +99,12 @@ ai-recruiter/
 ## Установка
 
 ```bash
-git clone <ссылка-на-ваш-репозиторий>
+git clone https://github.com/El1zavetaa/AI-Recruiter_MuzhevaEI
 cd ai-recruiter
 python3 -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+pip install openai sentence-transformers
 ```
-
-`requirements.txt` уже включает `openai` (HTTP-клиент для Ollama/OpenAI) и
-`sentence-transformers` (нейросетевые эмбеддинги) — отдельно ставить их не
-нужно.
 
 ### Ollama (локальная LLM)
 
@@ -140,7 +136,7 @@ $env:EMBEDDING_MODEL="BAAI/bge-m3"
 ```bash
 export LLM_BACKEND=openai
 export OPENAI_BASE_URL=http://localhost:11434/v1
-export OPENAI_API_KEY=ollama        # значение не проверяется, но переменная должна быть непустой
+export OPENAI_API_KEY=ollama        
 export LLM_MODEL=llama3
 
 export EMBEDDING_BACKEND=sentence_transformers
@@ -155,15 +151,6 @@ export EMBEDDING_MODEL=BAAI/bge-m3
 > Код агентов (`agents.py`, `orchestrator.py`, `vector_store.py`) при этом не
 > меняется — он работает через интерфейсы `LLMClient` и `EmbeddingModel` и не
 > знает, какой провайдер за ними стоит.
-
-Платный вариант (OpenAI API вместо Ollama) отличается только значениями
-переменных — не задавайте `OPENAI_BASE_URL` и укажите настоящий ключ:
-
-```bash
-export LLM_BACKEND=openai
-export OPENAI_API_KEY=sk-...
-export LLM_MODEL=gpt-4o-mini
-```
 
 ## Запуск
 
@@ -270,7 +257,7 @@ python -m unittest discover -s tests -v
   (`TfidfEmbeddingModel`) — см. раздел «Офлайн-режим». Интерфейс
   `EmbeddingModel` (`fit`/`encode`) один и тот же для обеих реализаций.
 - **LLM** — Llama-3 через локальный Ollama (OpenAI-совместимый API,
-  `LLM_BACKEND=openai` + `OPENAI_BASE_URL`), либо облачный OpenAI API;
+  `LLM_BACKEND=openai` + `OPENAI_BASE_URL`);
   для офлайн-тестов используется `RuleBasedLLM` — см. раздел
   «Офлайн-режим».
 - **Подсчёт опыта** — эвристика по регулярным выражениям над диапазонами дат
@@ -291,7 +278,7 @@ python -m unittest discover -s tests -v
 Демо-база резюме генерируется с фиксированным `seed=42`
 (`generate_demo_data.py`), поэтому набор данных одинаков между запусками.
 Итоговый текст в карточках кандидата при этом зависит от выбранного `LLM_BACKEND`:
-с Ollama/OpenAI (`LLM_BACKEND=openai`) LLM генерирует текст заново при каждом
+с Ollama LLM генерирует текст заново при каждом
 запуске (temperature=0.2), формулировки могут немного отличаться при
 неизменных фактах и скорах; в офлайн-режиме (`RuleBasedLLM` + TF-IDF, без
 заданных `LLM_BACKEND`/`EMBEDDING_BACKEND`) всё полностью детерминировано —
