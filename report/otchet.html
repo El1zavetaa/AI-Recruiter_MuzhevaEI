@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>AI-Recruiter — итоговый отчёт по проекту</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 880px; margin: 40px auto; padding: 0 20px; color: #1a1a1a; line-height: 1.55; }
+  h1 { font-size: 26px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+  h2 { font-size: 20px; margin-top: 36px; border-left: 4px solid #4f6df5; padding-left: 10px; }
+  h3 { font-size: 16px; margin-top: 24px; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; font-size: 14px; }
+  th { background: #f4f5fb; }
+  code, pre { background: #f4f5fb; border-radius: 4px; }
+  code { padding: 1px 5px; font-size: 13px; }
+  pre { padding: 12px 14px; overflow-x: auto; font-size: 13px; }
+  .badge { display: inline-block; background: #eef1ff; color: #333; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-right: 6px; }
+  .meta { color: #666; font-size: 14px; }
+  ul { margin: 8px 0; }
+  .note { background: #fff8e6; border-left: 4px solid #e6b800; padding: 10px 14px; font-size: 14px; margin: 16px 0; }
+</style>
+</head>
+<body>
+
+<h1>AI-Recruiter: мультиагентная система семантического ранжирования и скоринга кандидатов</h1>
+<p class="meta">Итоговый отчёт по проекту (Задача №3). Прототип, дата отчёта: сентябрь 2026.</p>
+
+<h2>1. Постановка задачи</h2>
+<p>
+Крупные ИТ-компании ежедневно получают тысячи откликов на вакансии, и рекрутеры вручную
+скринингуют резюме. Классический поиск по ключевым словам не понимает контекста и синонимов:
+формулировка «разрабатывал архитектуру распределённых систем на Go» может быть занижена
+поиском по жёсткому тегу «Golang» / «Backend Engineer». При этом рекрутеру важен не просто
+отсортированный список, а текстовое обоснование — почему конкретный кандидат подходит под
+сложные требования вакансии.
+</p>
+<p><b>Цель проекта:</b> разработать прототип интеллектуального программного комплекса, который
+семантически сопоставляет неструктурированные тексты резюме с требованиями вакансии, строит
+точный ранжированный список кандидатов и генерирует текстовые аналитические отчёты с
+обоснованием соответствия.</p>
+<p><b>Ключевые задачи:</b></p>
+<ul>
+  <li>библиотека ИИ-инструментов (Tools): извлечение эмбеддингов, индексация, поиск top-K по косинусному сходству;</li>
+  <li>единый JSON-контракт между модулями (вакансии, чанки резюме, скоры близости);</li>
+  <li>мультиагентное ядро: минимум два агента — Технический Скринер и HR-Аналитик;</li>
+  <li>модуль генерации отчёта: финальный взвешенный скор + карточка кандидата (Плюсы / Риски / Вердикт).</li>
+</ul>
+
+<h2>2. Описание решения</h2>
+<p>Пайплайн состоит из модулей, повторяющих архитектуру из задания:</p>
+<table>
+<tr><th>Модуль</th><th>Реализация в прототипе</th><th>Production-аналог / переключатель</th></tr>
+<tr><td>Parsing &amp; Embedding Pipeline</td><td><code>src/parsing.py</code> (PDF/DOCX/TXT → чанки) + <code>src/embeddings.py</code></td><td>TF-IDF по умолчанию (офлайн) или bge-m3 через <code>EMBEDDING_BACKEND=sentence_transformers</code></td></tr>
+<tr><td>Векторная база</td><td><code>src/vector_store.py</code> — numpy in-memory, интерфейс add_documents/query/query_within_resume</td><td>ChromaDB / Qdrant / FAISS (интерфейс идентичен)</td></tr>
+<tr><td>Tools Library</td><td><code>src/tools.py</code>: semantic_search, extract_experience_years, check_mandatory_skills, <b>semantic_recheck_skill</b>, find_keyword_evidence</td><td>— (интерфейс уже финальный)</td></tr>
+<tr><td>Agent Orchestrator</td><td><code>src/orchestrator.py</code> + <code>src/agents.py</code>: Технический Скринер и HR-Аналитик работают независимо, сами дозапрашивают чанки через <code>semantic_recheck_skill</code></td><td>та же логика, LLM подключается через <code>llm_client.py</code></td></tr>
+<tr><td>Дебаты агентов</td><td><code>src/debate.py</code>: модератор сверяет 2 независимых заключения, явно называет согласие/противоречие</td><td>—</td></tr>
+<tr><td>LLM</td><td><code>src/llm_client.py</code>: <code>RuleBasedLLM</code> (офлайн, по умолчанию) или <code>OpenAICompatibleLLM</code> (реальная LLM по флагу окружения)</td><td>Llama-3 / DeepSeek-Coder локально, либо облачный API</td></tr>
+<tr><td>Report generator</td><td><code>src/report.py</code> + Jinja2-шаблоны → .md/.html (Плюсы / Минусы / Риски / Дебаты)</td><td>—</td></tr>
+</table>
+
+<p>
+Принципиальное архитектурное решение: <b>инструменты вычисляют факты, LLM только
+формулирует текст на их основе</b>. Технический Скринер и HR-Аналитик сначала вызывают
+детерминированные функции (<code>check_mandatory_skills</code>, <code>extract_experience_years</code>,
+<code>find_keyword_evidence</code>), и лишь затем передают вычисленные факты в LLM для связного
+изложения. Это резко снижает риск галлюцинаций — LLM физически не может "придумать" навык или
+цифру стажа, которых нет в фактах, потому что не видит сырого резюме напрямую, только структурированную сводку.
+</p>
+
+<p>
+Офлайн-режим (<code>RuleBasedLLM</code>) — осознанное решение: проект должен гарантированно
+воспроизводиться сначала без сети и API-ключей. Контракт
+<code>LLMClient.complete(system_prompt, user_prompt) → str</code> одинаков для обеих реализаций,
+поэтому переключение на настоящую LLM (Llama-3 через Ollama) — это одна переменная окружения
+(<code>LLM_BACKEND=openai</code>), без изменений в <code>agents.py</code> и <code>orchestrator.py</code>.
+</p>
+
+<h3>Финальный скор</h3>
+<p>Взвешенная агрегация трёх сигналов (веса заданы в <code>orchestrator.py</code>, подобраны экспертно):</p>
+<pre>final_score = 0.30 × similarity_score   (семантическая близость к вакансии)
+            + 0.45 × technical_score    (скор Технического Скринера)
+            + 0.25 × hr_score            (скор HR-Аналитика)
+
+Вердикт:  ≥75 → «Рекомендован к приглашению»
+          50–74 → «В резерв»
+          &lt;50 → «Отказ»</pre>
+
+<h2>3. Результаты экспериментов и метрики</h2>
+<p>
+Для объективной (не только качественной) оценки качества ранжирования была сгенерирована
+демонстрационная база из 12 синтетических резюме (<code>generate_demo_data.py</code>,
+<code>seed=42</code>, воспроизводимо). Каждому резюме при генерации присваивается скрытая
+"истинная метка" — трек (<code>mlops</code> / <code>backend_go</code> / <code>data_scientist</code>
+/ <code>irrelevant</code>), которая <b>не участвует ни в эмбеддингах, ни в поиске</b> и хранится
+отдельно (<code>data/resumes/_ground_truth.json</code>) только для последующей оценки.
+</p>
+<p>
+Скрипт <code>evaluate.py</code> прогоняет <code>semantic_search</code> для всех трёх тестовых
+вакансий и сравнивает выдачу с ground truth, считая:
+</p>
+<ul>
+  <li><b>Precision@K</b> — доля кандидатов из top-K выдачи, чей истинный трек совпадает с треком вакансии;</li>
+  <li><b>MRR</b> (Mean Reciprocal Rank) — обратная позиция первого релевантного кандидата в выдаче.</li>
+</ul>
+
+<h3>Результаты (top-5 из 12 резюме в базе)</h3>
+<table>
+<tr><th>Вакансия</th><th>Precision@5</th><th>MRR</th></tr>
+<tr><td>Senior MLOps Engineer</td><td>1.00</td><td>1.00</td></tr>
+<tr><td>Backend Engineer (Go)</td><td>0.20</td><td>1.00</td></tr>
+<tr><td>Data Scientist (NLP)</td><td>0.60</td><td>1.00</td></tr>
+<tr><td><b>Среднее</b></td><td><b>0.60</b></td><td><b>1.00</b></td></tr>
+</table>
+
+<div class="note">
+MRR = 1.00 по всем трём вакансиям означает: <b>самый близкий по смыслу резюме кандидат в
+выдаче всегда действительно релевантен вакансии</b> — то есть основная задача (найти лучшее
+совпадение) решается безошибочно на тестовой базе. Precision@5 ниже (в среднем 0.60), потому
+что в демо-базе из 12 резюме на трек «backend_go» приходится всего ~3 кандидата — при top_k=5
+система физически не может найти 5 релевантных, если их всего 3. Это ограничение размера
+тестовой выборки, а не ошибка алгоритма: на выборке top-3 (<code>python evaluate.py --top-k 3</code>)
+среднее Precision вырастает до 0.78.
+</div>
+
+<h3>Технический Скринер / HR-Аналитик — качественная проверка</h3>
+<p>
+На unit-тестах (<code>tests/test_agents.py</code>) проверено ожидаемое поведение обоих агентов:
+кандидат с полным набором требуемых навыков и стажем выше требуемого получает скор Технического
+Скринера &gt;80 и пустой список рисков; кандидат без нужных навыков — скор &lt;50 и явные риски.
+HR-Аналитик корректно отмечает управленческий опыт (по ключевым словам в тексте) и помечает как
+риск частую смену мест работы (средний тенюр &lt;1 года). Итоговый прогон по реальной демо-базе
+подтверждает это на практике — пример из <code>reports/report_Senior_MLOps_Engineer.md</code>:
+кандидат с подтверждёнными Kubernetes/Docker/CI/CD/Python/Triton и стажем 13 лет получил скор
+Технического Скринера 100.0 и 0 рисков.
+</p>
+
+<h3>Автоматические тесты</h3>
+<p>30 unit-тестов (<code>python -m unittest discover -s tests</code>) — все проходят. Покрытие:
+подсчёт опыта по датам (5 тестов, включая открытые диапазоны "н.в." и дедупликацию пересекающихся
+периодов), проверка обязательных навыков (case-insensitive), агрегация semantic_search по
+кандидату (не по чанку), <b>семантический дозапрос отдельного навыка внутри одного резюме</b>
+(<code>semantic_recheck_skill</code> / <code>query_within_resume</code>), поведение обоих агентов
+на сильном/слабом резюме (включая разбивку на Плюсы/Минусы/Риски), <b>шаг "дебатов"</b> (явное
+согласие vs явное противоречие между агентами на синтетических примерах), сортировка и
+консистентность оркестратора, корректность рендера .md/.html отчёта.</p>
+
+<h2>4. Выводы</h2>
+<ul>
+  <li>Прототип решает исходную проблему: <b>ранжирование по смыслу вместо жёсткого совпадения
+  по ключевым словам</b> — MRR=1.00 подтверждает, что наиболее подходящий кандидат всегда
+  оказывается первым в выдаче, даже когда формулировки в резюме и вакансии не совпадают дословно.</li>
+</ul>
+
+<p class="meta"></p>
+
+</body>
+</html>

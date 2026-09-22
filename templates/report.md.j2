@@ -1,0 +1,55 @@
+# Отчёт по вакансии: {{ vacancy.title }}
+
+**Требуемые навыки:** {{ vacancy.required_skills | join(', ') }}
+**Желательные навыки:** {{ vacancy.nice_to_have_skills | join(', ') if vacancy.nice_to_have_skills else '—' }}
+**Мин. опыт:** {{ vacancy.min_experience_years }} лет
+
+Кандидатов в выдаче: {{ reports | length }}
+
+---
+
+## Сводная таблица
+
+| # | Кандидат | Итоговый скор | Близость к вакансии | Опыт (лет) | Вердикт |
+|---|----------|---------------|----------------------|------------|---------|
+{%- for r in reports %}
+| {{ loop.index }} | {{ r.candidate_name }} | {{ r.final_score }}% | {{ r.similarity_score }}% | {{ r.experience_years }} | {{ r.verdict }} |
+{%- endfor %}
+
+---
+
+{% for r in reports %}
+## {{ loop.index }}. {{ r.candidate_name }}
+
+**Релевантность: {{ r.final_score }}%** — {{ r.verdict }}
+
+- Семантическая близость к вакансии: {{ r.similarity_score }}%
+- Формальный опыт: {{ r.experience_years }} лет
+- Совпавшие обязательные навыки (точное совпадение): {{ r.matched_skills | join(', ') if r.matched_skills else '—' }}
+- Отсутствующие обязательные навыки (по точному совпадению, см. заключение Технического Скринера — часть может быть найдена семантическим дозапросом): {{ r.missing_skills | join(', ') if r.missing_skills else '—' }}
+
+{% for f in r.findings -%}
+### {{ f.agent_name }} (скор: {{ f.score }})
+
+{{ f.notes }}
+
+**Плюсы:**
+{% if f.strengths %}{% for s in f.strengths %}- {{ s }}
+{% endfor %}{% else %}- нет явных отмеченных плюсов{% endif %}
+
+**Минусы:**
+{% if f.weaknesses %}{% for s in f.weaknesses %}- {{ s }}
+{% endfor %}{% else %}- явных минусов не выявлено{% endif %}
+
+**Риски:**
+{% if f.risks %}{% for s in f.risks %}- {{ s }}
+{% endfor %}{% else %}- явных рисков не выявлено{% endif %}
+
+{% endfor -%}
+
+### Дебаты агентов (сверка заключений)
+
+{{ r.debate_notes }}
+
+---
+{% endfor %}

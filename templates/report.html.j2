@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Отчёт: {{ vacancy.title }}</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 16px; color: #1a1a1a; background: #fafafa; }
+  h1 { font-size: 24px; }
+  .meta { color: #555; margin-bottom: 24px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 32px; background: #fff; }
+  th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; font-size: 14px; }
+  th { background: #f0f0f0; }
+  .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px 24px; margin-bottom: 20px; }
+  .score { font-size: 20px; font-weight: 700; }
+  .verdict { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 8px; }
+  .verdict.invite { background: #d7f5dd; color: #17792c; }
+  .verdict.reserve { background: #fff2cc; color: #8a6d00; }
+  .verdict.reject { background: #fde0e0; color: #a12525; }
+  .agent { border-left: 3px solid #cfd8ff; padding-left: 14px; margin: 14px 0; }
+  .debate { border-left: 3px solid #ffd27a; padding-left: 14px; margin: 14px 0; background: #fffaf0; padding-top: 8px; padding-bottom: 8px; }
+  .tag { display: inline-block; background: #eef1ff; color: #333; border-radius: 6px; padding: 2px 8px; margin: 2px 4px 2px 0; font-size: 12px; }
+  .risk { background: #ffecec; color: #8a2020; }
+  ul { margin: 6px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+  <h1>Отчёт по вакансии: {{ vacancy.title }}</h1>
+  <div class="meta">
+    Требуемые навыки: {{ vacancy.required_skills | join(', ') }}<br>
+    Желательные навыки: {{ vacancy.nice_to_have_skills | join(', ') if vacancy.nice_to_have_skills else '—' }}<br>
+    Мин. опыт: {{ vacancy.min_experience_years }} лет &middot; Кандидатов в выдаче: {{ reports | length }}
+  </div>
+
+  <table>
+    <tr><th>#</th><th>Кандидат</th><th>Итоговый скор</th><th>Близость</th><th>Опыт</th><th>Вердикт</th></tr>
+    {% for r in reports %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ r.candidate_name }}</td>
+      <td>{{ r.final_score }}%</td>
+      <td>{{ r.similarity_score }}%</td>
+      <td>{{ r.experience_years }} лет</td>
+      <td>{{ r.verdict }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% for r in reports %}
+  <div class="card">
+    <span class="score">{{ r.candidate_name }} — {{ r.final_score }}%</span>
+    {% if r.verdict == 'Рекомендован к приглашению' %}
+      <span class="verdict invite">{{ r.verdict }}</span>
+    {% elif r.verdict == 'В резерв' %}
+      <span class="verdict reserve">{{ r.verdict }}</span>
+    {% else %}
+      <span class="verdict reject">{{ r.verdict }}</span>
+    {% endif %}
+
+    <p>
+      Семантическая близость: {{ r.similarity_score }}% &middot; Опыт: {{ r.experience_years }} лет
+    </p>
+    <div>
+      {% for s in r.matched_skills %}<span class="tag">✓ {{ s }}</span>{% endfor %}
+      {% for s in r.missing_skills %}<span class="tag risk">✗ {{ s }}</span>{% endfor %}
+    </div>
+
+    {% for f in r.findings %}
+    <div class="agent">
+      <strong>{{ f.agent_name }}</strong> (скор: {{ f.score }})
+      <p>{{ f.notes }}</p>
+      {% if f.strengths %}<strong>Плюсы:</strong><ul>{% for s in f.strengths %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+      {% if f.weaknesses %}<strong>Минусы:</strong><ul>{% for s in f.weaknesses %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+      {% if f.risks %}<strong>Риски:</strong><ul>{% for s in f.risks %}<li>{{ s }}</li>{% endfor %}</ul>{% endif %}
+    </div>
+    {% endfor %}
+
+    <div class="debate">
+      <strong>Дебаты агентов (сверка заключений):</strong>
+      <p>{{ r.debate_notes }}</p>
+    </div>
+  </div>
+  {% endfor %}
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "id": "senior_mlops",
+  "title": "Senior MLOps Engineer",
+  "description": "Ищем Senior MLOps-инженера для развития инфраструктуры инференса ML-моделей в высоконагруженных продуктах. Нужен опыт построения пайплайнов обучения и деплоя моделей, работы с контейнерной оркестрацией и мониторингом моделей в проде.",
+  "required_skills": ["Kubernetes", "Docker", "CI/CD", "Python", "Triton Inference Server"],
+  "nice_to_have_skills": ["Kafka", "Terraform", "Prometheus", "AWS"],
+  "min_experience_years": 4
+}

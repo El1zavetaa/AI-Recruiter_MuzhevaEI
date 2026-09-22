@@ -1,0 +1,8 @@
+{
+  "id": "data_scientist",
+  "title": "Data Scientist (NLP)",
+  "description": "Разработка и внедрение моделей обработки естественного языка для продуктовых задач: классификация, извлечение сущностей, ранжирование. Работа с большими текстовыми датасетами.",
+  "required_skills": ["Python", "PyTorch", "NLP", "pandas"],
+  "nice_to_have_skills": ["transformers", "LLM", "SQL"],
+  "min_experience_years": 2
+}

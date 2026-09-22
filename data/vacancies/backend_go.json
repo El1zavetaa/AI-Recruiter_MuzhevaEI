@@ -1,0 +1,8 @@
+{
+  "id": "backend_go",
+  "title": "Backend Engineer (Go)",
+  "description": "Разработка высоконагруженного бэкенда распределённых сервисов на Go. Проектирование архитектуры микросервисов, работа с очередями сообщений и базами данных, участие в код-ревью.",
+  "required_skills": ["Go", "PostgreSQL", "gRPC", "Docker"],
+  "nice_to_have_skills": ["Kafka", "Redis", "Kubernetes"],
+  "min_experience_years": 3
+}
